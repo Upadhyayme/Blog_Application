@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>BlogBOOHub – Read &amp; Write</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+
+<div id="navbar"></div>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="container">
+    <h1>Discover Great Stories</h1>
+    <p>A community-driven blog platform. Read, write, and connect with ideas that matter.</p>
+    <div class="search-bar">
+      <input type="text" id="searchInput" placeholder="Search posts, topics, tags…" autocomplete="off"/>
+      <button onclick="handleSearch()">Search</button>
+    </div>
+  </div>
+</section>
+
+<main>
+  <div class="container">
+    <section class="section">
+
+      <div class="section-header">
+        <h2 class="section-title" id="sectionTitle">Latest Posts</h2>
+        <div id="resultMeta" class="text-muted"></div>
+      </div>
+
+      <div id="loading" class="loading-wrap">
+        <div class="spinner"></div>
+        <p>Loading posts…</p>
+      </div>
+
+      <div id="postGrid" class="post-grid hidden"></div>
+
+      <div id="emptyState" class="empty-state hidden">
+        <h3>No posts found</h3>
+        <p>Try a different search term or be the first to write!</p>
+        <a href="create-post.html" class="btn btn-primary mt-2">Write a Post</a>
+      </div>
+
+      <div id="pagination" class="pagination hidden"></div>
+
+    </section>
+  </div>
+</main>
+
+<footer><p>&copy; 2024 BlogHub · Built with Flask &amp; Vanilla JS</p></footer>
+<div id="toast"></div>
+
+<script src="js/api.js"></script>
+<script>
+  let currentPage = 1;
+  let currentSearch = "";
+  let currentTag = "";
+
+  document.addEventListener("DOMContentLoaded", () => {
+    renderNavbar();
+    const params = new URLSearchParams(window.location.search);
+    currentTag    = params.get("tag")    || "";
+    currentSearch = params.get("search") || "";
+    if (currentSearch) document.getElementById("searchInput").value = currentSearch;
+    loadPosts();
+    document.getElementById("searchInput").addEventListener("keydown", e => { if (e.key === "Enter") handleSearch(); });
+  });
+
+  async function loadPosts(page = 1) {
+    currentPage = page;
+    showLoading(true);
+
+    const params = new URLSearchParams({ page, per_page: 6 });
+    if (currentSearch) params.append("search", currentSearch);
+    if (currentTag)    params.append("tag",    currentTag);
+
+    const { ok, data } = await apiRequest(`/posts?${params}`);
+    showLoading(false);
+
+    if (!ok) { showToast(data.error || "Failed to load posts", "error"); return; }
+    renderPosts(data);
+    renderPagination(data);
+    updateHeader(data);
+  }
+
+  function renderPosts({ posts }) {
+    const grid  = document.getElementById("postGrid");
+    const empty = document.getElementById("emptyState");
+
+    if (!posts.length) {
+      grid.classList.add("hidden");
+      empty.classList.remove("hidden");
+      return;
+    }
+    empty.classList.add("hidden");
+    grid.classList.remove("hidden");
+
+    grid.innerHTML = posts.map(post => `
+      <article class="card">
+
+        <!-- Cover image or colourful placeholder -->
+        ${post.image_url
+          ? `<img class="card-cover" src="${escapeHtml(post.image_url)}" alt="${escapeHtml(post.title)}" onerror="this.parentElement.querySelector('.card-cover-placeholder').style.display='flex';this.remove()"/>`
+          : ``}
+        <div class="card-cover-placeholder" style="${post.image_url ? 'display:none' : ''}">📝</div>
+
+        <div class="card-body">
+          <div class="card-meta">
+            <span>✍️ ${escapeHtml(post.author)}</span>
+            <span>📅 ${formatRelative(post.created_at)}</span>
+          </div>
+          <h2 class="card-title">
+            <a href="post.html?id=${post.id}">${escapeHtml(post.title)}</a>
+          </h2>
+          <p class="card-summary">${escapeHtml(post.summary)}</p>
+          <div class="mb-2">
+            ${(post.tags || []).map(t => `<span class="tag" onclick="filterByTag('${escapeHtml(t)}')">${escapeHtml(t)}</span>`).join("")}
+          </div>
+        </div>
+
+        <div class="card-footer">
+          <div class="flex gap-2">
+            <span class="stat-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+              ${post.like_count}
+            </span>
+            <span class="stat-chip">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              ${post.comment_count}
+            </span>
+          </div>
+          <a href="post.html?id=${post.id}" class="btn btn-outline btn-sm">Read →</a>
+        </div>
+      </article>
+    `).join("");
+  }
+
+  function renderPagination({ pages, current_page, has_prev, has_next }) {
+    const el = document.getElementById("pagination");
+    if (pages <= 1) { el.classList.add("hidden"); return; }
+    el.classList.remove("hidden");
+    let html = `<button class="page-btn" onclick="loadPosts(${current_page - 1})" ${!has_prev ? "disabled" : ""}>‹ Prev</button>`;
+    for (let i = 1; i <= pages; i++) html += `<button class="page-btn ${i === current_page ? "active" : ""}" onclick="loadPosts(${i})">${i}</button>`;
+    html += `<button class="page-btn" onclick="loadPosts(${current_page + 1})" ${!has_next ? "disabled" : ""}>Next ›</button>`;
+    el.innerHTML = html;
+  }
+
+  function updateHeader({ total }) {
+    const title = document.getElementById("sectionTitle");
+    const meta  = document.getElementById("resultMeta");
+    if (currentSearch) { title.textContent = `Search: "${currentSearch}"`; meta.textContent = `${total} result${total !== 1 ? "s" : ""} found`; }
+    else if (currentTag) { title.textContent = `Tag: #${currentTag}`; meta.textContent = `${total} post${total !== 1 ? "s" : ""}`; }
+    else { title.textContent = "Latest Posts"; meta.textContent = `${total} post${total !== 1 ? "s" : ""}`; }
+  }
+
+  function handleSearch() {
+    currentSearch = document.getElementById("searchInput").value.trim();
+    currentTag = "";
+    loadPosts(1);
+  }
+
+  function filterByTag(tag) {
+    currentTag = tag; currentSearch = "";
+    document.getElementById("searchInput").value = "";
+    loadPosts(1);
+  }
+
+  function showLoading(show) {
+    document.getElementById("loading").classList.toggle("hidden", !show);
+    if (show) {
+      document.getElementById("postGrid").classList.add("hidden");
+      document.getElementById("emptyState").classList.add("hidden");
+      document.getElementById("pagination").classList.add("hidden");
+    }
+  }
+</script>
+</body>
+</html>

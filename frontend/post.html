@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Post – BlogBOOHub</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div id="navbar"></div>
+
+<div class="post-wrapper">
+
+  <div id="loading" class="loading-wrap">
+    <div class="spinner"></div>
+    <p>Loading post…</p>
+  </div>
+
+  <div id="errorState" class="empty-state hidden">
+    <h3>Post not found</h3>
+    <p>This post may have been deleted.</p>
+    <a href="index.html" class="btn btn-primary mt-2">← Back to Home</a>
+  </div>
+
+  <article id="postContent" class="hidden">
+
+    <!-- Cover image (shown only if post has one) -->
+    <img id="postCoverImage" class="post-cover hidden" src="" alt="Cover image"
+         onerror="this.classList.add('hidden')"/>
+
+    <div class="post-header">
+      <div id="tagsRow" style="margin-bottom:.75rem"></div>
+      <h1 class="post-title" id="postTitle"></h1>
+      <div class="post-meta">
+        <span id="postAuthor"></span>
+        <span id="postDate"></span>
+        <span id="postUpdated" class="hidden"></span>
+      </div>
+      <!-- Edit / Delete — only shown to the author -->
+      <div class="post-actions" id="authorActions" style="display:none">
+        <a id="editBtn" href="#" class="btn btn-outline btn-sm">✏️ Edit</a>
+        <button class="btn btn-danger btn-sm" onclick="deletePost()">🗑️ Delete</button>
+      </div>
+    </div>
+
+    <hr style="border:none;border-top:1px solid var(--border);margin:1.5rem 0"/>
+
+    <div class="post-content" id="postBody"></div>
+
+    <!-- Like button -->
+    <div style="margin-top:2rem">
+      <button class="like-btn" id="likeBtn" onclick="toggleLike()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+        </svg>
+        <span id="likeCount">0</span> Likes
+      </button>
+    </div>
+
+    <!-- Comments -->
+    <section class="comments-section">
+      <h2 class="comments-title">💬 Comments (<span id="commentCount">0</span>)</h2>
+
+      <div id="commentForm" class="comment-form hidden">
+        <div class="form-group">
+          <label class="form-label" for="commentBody">Leave a comment</label>
+          <textarea class="form-control" id="commentBody" rows="3" placeholder="Share your thoughts…" maxlength="1000"></textarea>
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="submitComment()">Post Comment</button>
+      </div>
+
+      <p id="commentLoginPrompt" class="text-muted hidden">
+        <a href="login.html">Log in</a> to leave a comment.
+      </p>
+
+      <div id="commentList" class="comment-list"></div>
+      <p id="noComments" class="text-muted hidden" style="margin-top:1rem">No comments yet. Be the first!</p>
+    </section>
+
+  </article>
+</div>
+
+<footer><p>&copy; 2024 BlogHub · <a href="index.html">← Back to all posts</a></p></footer>
+<div id="toast"></div>
+<script src="js/api.js"></script>
+<script>
+  let postId   = null;
+  let postData = null;
+
+  document.addEventListener("DOMContentLoaded", () => {
+    renderNavbar();
+    const params = new URLSearchParams(window.location.search);
+    postId = params.get("id");
+    if (!postId) { showError(); return; }
+    loadPost();
+  });
+
+  async function loadPost() {
+    const { ok, data } = await apiRequest(`/posts/${postId}`);
+    document.getElementById("loading").classList.add("hidden");
+    if (!ok) { showError(); return; }
+    postData = data.post;
+    renderPost(data.post);
+    renderComments(data.post.comments || []);
+  }
+
+  function renderPost(post) {
+    document.title = `${post.title} – BlogHub`;
+
+    // ── Cover image ───────────────────────────────────────────────────
+    if (post.image_url) {
+      const coverImg = document.getElementById("postCoverImage");
+      coverImg.src = post.image_url;
+      coverImg.alt = post.title;
+      coverImg.classList.remove("hidden");
+    }
+
+    // Tags
+    const tagsRow = document.getElementById("tagsRow");
+    if (post.tags && post.tags.length) {
+      tagsRow.innerHTML = post.tags
+        .map(t => `<a class="tag" href="index.html?tag=${encodeURIComponent(t)}">${escapeHtml(t)}</a>`)
+        .join(" ");
+    }
+
+    document.getElementById("postTitle").textContent  = post.title;
+    document.getElementById("postAuthor").textContent = `✍️ ${post.author}`;
+    document.getElementById("postDate").textContent   = `📅 ${formatDate(post.created_at)}`;
+
+    const diff = new Date(post.updated_at) - new Date(post.created_at);
+    if (diff > 60000) {
+      const updEl = document.getElementById("postUpdated");
+      updEl.textContent = `✏️ Updated ${formatRelative(post.updated_at)}`;
+      updEl.classList.remove("hidden");
+    }
+
+    // Content
+    const bodyEl = document.getElementById("postBody");
+    bodyEl.innerHTML = post.content
+      .split(/\n\n+/)
+      .map(para => `<p>${escapeHtml(para.trim()).replace(/\n/g, "<br/>")}</p>`)
+      .join("");
+
+    document.getElementById("likeCount").textContent = post.like_count;
+
+    // Author actions
+    const currentUser = Auth.getUser();
+    if (currentUser && currentUser.id === post.author_id) {
+      document.getElementById("authorActions").style.display = "flex";
+      document.getElementById("editBtn").href = `create-post.html?edit=${post.id}`;
+    }
+
+    // Comments
+    if (Auth.isLoggedIn()) { document.getElementById("commentForm").classList.remove("hidden"); }
+    else { document.getElementById("commentLoginPrompt").classList.remove("hidden"); }
+
+    document.getElementById("postContent").classList.remove("hidden");
+  }
+
+  function renderComments(comments) {
+    document.getElementById("commentCount").textContent = comments.length;
+    const list        = document.getElementById("commentList");
+    const noComm      = document.getElementById("noComments");
+    const currentUser = Auth.getUser();
+
+    if (!comments.length) { noComm.classList.remove("hidden"); list.innerHTML = ""; return; }
+    noComm.classList.add("hidden");
+
+    list.innerHTML = comments.map(c => `
+      <div class="comment-item" id="comment-${c.id}">
+        <div><span class="comment-author">${escapeHtml(c.author)}</span><span class="comment-date">${formatRelative(c.created_at)}</span></div>
+        <div class="comment-body">${escapeHtml(c.body)}</div>
+        ${currentUser && currentUser.id === c.author_id
+          ? `<div style="margin-top:.5rem"><button class="btn btn-ghost btn-sm" onclick="deleteComment(${c.id})">🗑️ Delete</button></div>`
+          : ""}
+      </div>
+    `).join("");
+  }
+
+  async function toggleLike() {
+    if (!Auth.isLoggedIn()) { showToast("Please log in to like posts", "error"); return; }
+    const btn = document.getElementById("likeBtn"); btn.disabled = true;
+    const { ok, data } = await apiRequest(`/posts/${postId}/like`, "POST");
+    btn.disabled = false;
+    if (ok) { document.getElementById("likeCount").textContent = data.like_count; btn.classList.toggle("liked", data.liked); }
+    else { showToast(data.error || "Could not like post", "error"); }
+  }
+
+  async function submitComment() {
+    const body = document.getElementById("commentBody").value.trim();
+    if (!body) { showToast("Comment cannot be empty", "error"); return; }
+    const { ok, data } = await apiRequest(`/posts/${postId}/comments`, "POST", { body });
+    if (ok) { document.getElementById("commentBody").value = ""; showToast("Comment posted!", "success"); loadPost(); }
+    else { showToast(data.error || "Failed to post comment", "error"); }
+  }
+
+  async function deleteComment(commentId) {
+    if (!confirm("Delete this comment?")) return;
+    const { ok, data } = await apiRequest(`/posts/${postId}/comments/${commentId}`, "DELETE");
+    if (ok) { document.getElementById(`comment-${commentId}`)?.remove(); const c = document.getElementById("commentCount"); c.textContent = parseInt(c.textContent) - 1; showToast("Comment deleted", "success"); }
+    else { showToast(data.error || "Could not delete comment", "error"); }
+  }
+
+  async function deletePost() {
+    if (!confirm("Are you sure you want to delete this post? This cannot be undone.")) return;
+    const { ok, data } = await apiRequest(`/posts/${postId}`, "DELETE");
+    if (ok) { showToast("Post deleted", "success"); setTimeout(() => { window.location.href = "index.html"; }, 900); }
+    else { showToast(data.error || "Could not delete post", "error"); }
+  }
+
+  function showError() {
+    document.getElementById("loading").classList.add("hidden");
+    document.getElementById("errorState").classList.remove("hidden");
+  }
+</script>
+</body>
+</html>

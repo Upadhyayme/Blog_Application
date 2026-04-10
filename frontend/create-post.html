@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Write – BlogBOOHub</title>
+  <link rel="stylesheet" href="css/style.css"/>
+</head>
+<body>
+<div id="navbar"></div>
+
+<div class="post-form-wrapper">
+  <h1 class="post-form-title" id="pageTitle">✍️ Write a New Post</h1>
+  <div id="alert" class="hidden"></div>
+
+  <!-- Title -->
+  <div class="form-group">
+    <label class="form-label" for="title">Post Title *</label>
+    <input class="form-control" id="title" type="text" placeholder="An interesting title draws readers in…" maxlength="200"/>
+    <small class="text-muted"><span id="titleCount">0</span>/200 characters</small>
+  </div>
+
+  <!-- Cover Image Upload -->
+  <div class="form-group">
+    <label class="form-label">Cover Image <span class="text-muted">(optional)</span></label>
+
+    <!-- Upload area — shown when no image selected -->
+    <div class="image-upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+      <div class="upload-icon">📷</div>
+      <p>Click here to upload a cover image</p>
+      <small>PNG, JPG, GIF, WEBP — max 5MB</small>
+    </div>
+
+    <!-- Preview — shown after image selected -->
+    <div class="image-preview-wrap hidden" id="previewWrap">
+      <img id="imagePreview" src="" alt="Cover preview"/>
+      <button class="remove-image-btn" onclick="removeImage()" title="Remove image">✕</button>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)"/>
+
+    <!-- Upload status message -->
+    <div id="uploadStatus" style="margin-top:.5rem; font-size:.85rem"></div>
+  </div>
+
+  <!-- Summary -->
+  <div class="form-group">
+    <label class="form-label" for="summary">Short Summary <span class="text-muted">(optional)</span></label>
+    <textarea class="form-control" id="summary" rows="2" placeholder="A brief description shown on the home page cards…" maxlength="500" style="min-height:70px"></textarea>
+  </div>
+
+  <!-- Content -->
+  <div class="form-group">
+    <label class="form-label" for="content">Content *</label>
+    <textarea class="form-control" id="content" rows="16"
+              placeholder="Write your post here… Use double line breaks to separate paragraphs."
+              style="min-height:320px; font-family:'Georgia',serif; font-size:1rem; line-height:1.75"></textarea>
+    <small class="text-muted"><span id="wordCount">0</span> words</small>
+  </div>
+
+  <!-- Tags -->
+  <div class="form-group">
+    <label class="form-label" for="tags">Tags <span class="text-muted">(comma-separated, e.g. python, web, tutorial)</span></label>
+    <input class="form-control" id="tags" type="text" placeholder="python, flask, tutorial" maxlength="200"/>
+  </div>
+
+  <!-- Buttons -->
+  <div style="display:flex; gap:.75rem; flex-wrap:wrap; margin-top:1rem">
+    <button class="btn btn-primary btn-lg" id="submitBtn" onclick="handleSubmit()">🚀 Publish Post</button>
+    <a href="index.html" class="btn btn-ghost btn-lg">Cancel</a>
+  </div>
+</div>
+
+<footer><p>&copy; 2024 BlogHub</p></footer>
+<div id="toast"></div>
+<script src="js/api.js"></script>
+<script>
+  let editMode    = false;
+  let editPostId  = null;
+  let uploadedImageUrl = "";   // stores the URL after successful upload
+
+  // ── Init ──────────────────────────────────────────────────────────────
+  document.addEventListener("DOMContentLoaded", async () => {
+    renderNavbar();
+    if (!requireAuth()) return;
+
+    const params = new URLSearchParams(window.location.search);
+    editPostId = params.get("edit");
+
+    if (editPostId) {
+      editMode = true;
+      document.getElementById("pageTitle").textContent    = "✏️ Edit Post";
+      document.getElementById("submitBtn").textContent    = "💾 Save Changes";
+      await loadPostForEdit(editPostId);
+    }
+
+    // Live counters
+    document.getElementById("title").addEventListener("input", () => {
+      document.getElementById("titleCount").textContent = document.getElementById("title").value.length;
+    });
+    document.getElementById("content").addEventListener("input", () => {
+      const words = document.getElementById("content").value.trim().split(/\s+/).filter(Boolean).length;
+      document.getElementById("wordCount").textContent = words;
+    });
+  });
+
+  // ── Load post for editing ─────────────────────────────────────────────
+  async function loadPostForEdit(id) {
+    const { ok, data } = await apiRequest(`/posts/${id}`);
+    if (!ok) { showAlert("Could not load post.", "error"); return; }
+    const post = data.post;
+    const currentUser = Auth.getUser();
+    if (currentUser.id !== post.author_id) { showAlert("You are not authorized to edit this post.", "error"); document.getElementById("submitBtn").disabled = true; return; }
+
+    document.getElementById("title").value   = post.title;
+    document.getElementById("content").value = post.content;
+    document.getElementById("summary").value = post.summary || "";
+    document.getElementById("tags").value    = (post.tags || []).join(", ");
+    document.getElementById("titleCount").textContent = post.title.length;
+    document.getElementById("wordCount").textContent  = post.content.trim().split(/\s+/).filter(Boolean).length;
+
+    // Pre-fill existing image
+    if (post.image_url) {
+      uploadedImageUrl = post.image_url;
+      document.getElementById("imagePreview").src = post.image_url;
+      document.getElementById("uploadArea").classList.add("hidden");
+      document.getElementById("previewWrap").classList.remove("hidden");
+    }
+  }
+
+  // ── Image select & upload ─────────────────────────────────────────────
+  async function handleImageSelect(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Show instant local preview
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      document.getElementById("imagePreview").src = e.target.result;
+      document.getElementById("uploadArea").classList.add("hidden");
+      document.getElementById("previewWrap").classList.remove("hidden");
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to server
+    const status = document.getElementById("uploadStatus");
+    status.innerHTML = '<span style="color:var(--primary)">⏳ Uploading image…</span>';
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    try {
+      const res  = await fetch(`${API_BASE}/upload`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${Auth.getToken()}` },
+        body: formData   // No Content-Type header — browser sets it automatically for FormData
+      });
+      const data = await res.json();
+
+      if (res.ok) {
+        uploadedImageUrl = data.image_url;
+        status.innerHTML = '<span style="color:var(--success)">✅ Image uploaded successfully!</span>';
+      } else {
+        status.innerHTML = `<span style="color:var(--danger)">❌ ${data.error}</span>`;
+        removeImage();
+      }
+    } catch (err) {
+      status.innerHTML = '<span style="color:var(--danger)">❌ Upload failed — is the server running?</span>';
+      removeImage();
+    }
+  }
+
+  // ── Remove image ──────────────────────────────────────────────────────
+  function removeImage() {
+    uploadedImageUrl = "";
+    document.getElementById("imageInput").value       = "";
+    document.getElementById("imagePreview").src       = "";
+    document.getElementById("uploadStatus").innerHTML = "";
+    document.getElementById("previewWrap").classList.add("hidden");
+    document.getElementById("uploadArea").classList.remove("hidden");
+  }
+
+  // ── Submit (create or update) ─────────────────────────────────────────
+  async function handleSubmit() {
+    const title   = document.getElementById("title").value.trim();
+    const content = document.getElementById("content").value.trim();
+    const summary = document.getElementById("summary").value.trim();
+    const tags    = document.getElementById("tags").value.trim();
+    const btn     = document.getElementById("submitBtn");
+
+    if (!title)              { showAlert("Title is required.", "error"); document.getElementById("title").focus(); return; }
+    if (content.length < 10) { showAlert("Content must be at least 10 characters.", "error"); document.getElementById("content").focus(); return; }
+
+    btn.disabled    = true;
+    btn.textContent = editMode ? "Saving…" : "Publishing…";
+    clearAlert();
+
+    const payload = { title, content, summary, tags, image_url: uploadedImageUrl };
+
+    const response = editMode
+      ? await apiRequest(`/posts/${editPostId}`, "PUT",  payload)
+      : await apiRequest("/posts",               "POST", payload);
+
+    btn.disabled    = false;
+    btn.textContent = editMode ? "💾 Save Changes" : "🚀 Publish Post";
+
+    const { ok, data } = response;
+    if (ok) {
+      showToast(editMode ? "Post updated!" : "Post published! 🎉", "success");
+      setTimeout(() => { window.location.href = `post.html?id=${data.post.id}`; }, 900);
+    } else {
+      showAlert(data.error || "Something went wrong. Please try again.", "error");
+    }
+  }
+
+  function showAlert(msg, type) {
+    const el = document.getElementById("alert");
+    el.className = `alert alert-${type}`; el.textContent = msg; el.classList.remove("hidden");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  function clearAlert() { document.getElementById("alert").classList.add("hidden"); }
+</script>
+</body>
+</html>
