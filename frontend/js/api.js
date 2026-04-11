@@ -2,7 +2,7 @@
  * js/api.js  –  Shared API client, Auth, and utilities
  */
 
-const API_BASE = "http://127.0.0.1:5000";
+const API_BASE = "https://blog-application-g4io.onrender.com";
 
 // ── Auth ─────────────────────────────────────────────────────────────────
 const Auth = {
