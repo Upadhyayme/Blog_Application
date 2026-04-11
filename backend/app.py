@@ -37,7 +37,7 @@ def create_app(config_class=Config):
     # ── Error handlers ────────────────────────────────────────────────────
     @app.errorhandler(404)
     def not_found(e):
-        return jsonify({"error": str(e) or "Resource not found"}), 404
+        return jsonify({"error": "Resource not found"}), 404
 
     @app.errorhandler(405)
     def method_not_allowed(e):
