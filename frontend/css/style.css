@@ -108,7 +108,7 @@ textarea.form-control { resize: vertical; min-height: 160px; }
 .image-upload-area p { color: var(--text-muted); margin: 0; font-size: .9rem; }
 .image-upload-area small { color: var(--text-muted); font-size: .8rem; }
 .image-preview-wrap { position: relative; }
-.image-preview-wrap img { width: 100%; max-height: 260px; object-fit: cover; border-radius: 8px; }
+.image-preview-wrap img { width: 100%; height: auto; max-height: 400px; object-fit: contain; border-radius: 8px; background: f0f0f0; }
 .remove-image-btn { position: absolute; top: 8px; right: 8px; background: rgba(0,0,0,.6); color: #fff; border: none; border-radius: 50%; width: 30px; height: 30px; font-size: 1rem; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
 /* ── Alerts / Toast ──────────────────────────────────── */
