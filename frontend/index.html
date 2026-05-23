@@ -85,24 +85,6 @@
     renderPagination(data);
     updateHeader(data);
   }
-
-  function handleImageSelect(event) {
-    const file = event.target.files[0];
-
-    if (!file) return;
-
-    const preview = document.getElementById("imagePreview");
-    const previewWrap = document.getElementById("previewWrap");
-
-    const reader = new FileReader();
-
-    reader.onload = function(e) {
-        preview.src = e.target.result;
-        previewWrap.classList.remove("hidden");
-    };
-
-    reader.readAsDataURL(file);
-}
   
   function renderPosts({ posts }) {
     const grid  = document.getElementById("postGrid");
@@ -118,12 +100,6 @@
 
     grid.innerHTML = posts.map(post => `
       <article class="card">
-
-        <!-- Cover image or colourful placeholder -->
-        ${post.image_url
-          ? `<img class="card-cover" src="${escapeHtml(post.image_url)}" alt="${escapeHtml(post.title)}" onerror="this.parentElement.querySelector('.card-cover-placeholder').style.display='flex';this.remove()"/>`
-          : ``}
-        <div class="card-cover-placeholder" style="${post.image_url ? 'display:none' : ''}">📝</div>
 
         <div class="card-body">
           <div class="card-meta">
