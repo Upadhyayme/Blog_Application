@@ -1,7 +1,6 @@
 # 📝 BlogBOOHub — Full Stack Blog Application
 
 🌐 **Live Demo:** [blog-applicatiion](https://blog-application-pi-taupe.vercel.app/)
-🔧 **API Backend:** [blog-application](https://blog-application-g4io.onrender.com)]
 
 ## 🚀 About The Project
 
@@ -91,6 +90,8 @@ blog-application/
 ---
 
 ## 🔌 API Endpoints
+
+🔧 **API Backend:** [blog-application](https://blog-application-g4io.onrender.com)] 
 
 ### Authentication
 | Method | Endpoint | Auth | Description |
