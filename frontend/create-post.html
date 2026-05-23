@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <title>Write – BlogBOOHub</title>
+  <title>Write – BlogHub</title>
   <link rel="stylesheet" href="css/style.css"/>
 </head>
 <body>
@@ -20,6 +20,29 @@
     <small class="text-muted"><span id="titleCount">0</span>/200 characters</small>
   </div>
 
+  <!-- Cover Image Upload -->
+  <div class="form-group">
+    <label class="form-label">Cover Image <span class="text-muted">(optional)</span></label>
+
+    <!-- Upload area — shown when no image selected -->
+    <div class="image-upload-area" id="uploadArea" onclick="document.getElementById('imageInput').click()">
+      <div class="upload-icon">📷</div>
+      <p>Click here to upload a cover image</p>
+      <small>PNG, JPG, GIF, WEBP — max 5MB</small>
+    </div>
+
+    <!-- Preview — shown after image selected -->
+    <div class="image-preview-wrap hidden" id="previewWrap">
+      <img id="imagePreview" src="" alt="Cover preview"/>
+      <button class="remove-image-btn" onclick="removeImage()" title="Remove image">✕</button>
+    </div>
+
+    <!-- Hidden file input -->
+    <input type="file" id="imageInput" accept="image/*" style="display:none" onchange="handleImageSelect(event)"/>
+
+    <!-- Upload status message -->
+    <div id="uploadStatus" style="margin-top:.5rem; font-size:.85rem"></div>
+  </div>
 
   <!-- Summary -->
   <div class="form-group">
@@ -49,7 +72,7 @@
   </div>
 </div>
 
-<footer><p>&copy; 2026 BlogHub</p></footer>
+<footer><p>&copy; 2024 BlogHub</p></footer>
 <div id="toast"></div>
 <script src="js/api.js"></script>
 <script>
@@ -200,3 +223,4 @@
 </script>
 </body>
 </html>
+
